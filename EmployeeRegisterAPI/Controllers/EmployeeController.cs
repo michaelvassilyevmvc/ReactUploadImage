@@ -6,6 +6,9 @@ using EmployeeRegisterAPI.Data;
 using Microsoft.AspNetCore.Mvc;
 using EmployeeRegisterAPI.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
 
 namespace EmployeeRegisterAPI.Controllers
 {
@@ -13,43 +16,74 @@ namespace EmployeeRegisterAPI.Controllers
     [ApiController]
     public class EmployeeController : Controller
     {
-        private readonly EmployeeDbContext _conext;
-        public EmployeeController(EmployeeDbContext conext)
+        private readonly EmployeeDbContext _context;
+        private readonly IWebHostEnvironment _hostEnvironment;
+
+        public EmployeeController(EmployeeDbContext context, IWebHostEnvironment hostEnvironment)
         {
-            _conext = conext;
+            _context = context;
+            _hostEnvironment = hostEnvironment;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EmployeeModel>>> GetEmployees()
         {
-            return await _conext.Employees.ToListAsync();
+            return await _context.Employees.ToListAsync();
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<EmployeeModel>> GetEmployeeModel(int id)
+        {
+            var employeeModel = await _context.Employees.FindAsync(id);
+            if (employeeModel != null)
+            {
+                return Ok(employeeModel);
+            }
+
+            return NoContent();
         }
 
         [HttpPost]
-        public async Task<ActionResult<EmployeeModel>> PostEmployeeModel(EmployeeModel employeeModel)
+        public async Task<ActionResult<EmployeeModel>> PostEmployeeModel([FromForm] EmployeeModel employeeModel)
         {
-            _conext.Employees.Add(employeeModel);
-            await _conext.SaveChangesAsync();
+            employeeModel.ImageName = await SaveImage(employeeModel.ImageFile);
+            _context.Employees.Add(employeeModel);
+            await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetEmployeeModel", new { id = employeeModel.EmployeeID }, employeeModel);
+            return StatusCode(201);
         }
 
-        [HttpDelete]
+        [HttpDelete("{id}")]
         public async Task<ActionResult<EmployeeModel>> DeleteEmployeeModel(int id)
         {
-            var employeeModel = await _conext.Employees.FindAsync(id);
+            var employeeModel = await _context.Employees.FindAsync(id);
             if (employeeModel == null)
             {
                 return NotFound();
             }
 
-            _conext.Employees.Remove(employeeModel);
+            _context.Employees.Remove(employeeModel);
+            await _context.SaveChangesAsync();
+
             return employeeModel;
+        }
+
+        [NonAction]
+        public async Task<string> SaveImage(IFormFile imageFile)
+        {
+            string imageName = new String(Path.GetFileNameWithoutExtension(imageFile.FileName).Take(10).ToArray()).Replace(' ', '-');
+            imageName = imageName + DateTime.Now.ToString("yymmssfff") + Path.GetExtension(imageFile.FileName);
+            var imagePath = Path.Combine(_hostEnvironment.ContentRootPath, "Images", imageName);
+            using (var fileStream = new FileStream(imagePath, FileMode.Create))
+            {
+                await imageFile.CopyToAsync(fileStream);
+            }
+            return imageName;
         }
 
         private bool EmployeeModelExists(int id)
         {
-            return _conext.Employees.Any(e => e.EmployeeID == id);
+            return _context.Employees.Any(e => e.EmployeeID == id);
         }
     }
 }

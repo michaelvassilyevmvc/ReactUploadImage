@@ -36,10 +36,13 @@ namespace EmployeeRegisterAPI
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "EmployeeRegisterAPI", Version = "v1" });
             });
+            services.AddCors();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseCors(options => options.WithOrigins("http://localhost:3000").AllowAnyHeader().AllowAnyMethod());
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
